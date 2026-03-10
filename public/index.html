@@ -1,0 +1,135 @@
+// unibridge-surface-telegram/public/index.html
+
+<!DOCTYPE html>
+<html>
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>UniBridge Wallet</title>
+
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+<style>
+
+body{
+  font-family: system-ui, sans-serif;
+  padding:20px;
+}
+
+input, select, button{
+  width:100%;
+  padding:12px;
+  font-size:16px;
+  margin-top:6px;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<h2>Send Money</h2>
+
+<label for="sender_id">Sender ID</label>
+<input
+id="sender_id"
+placeholder="telegram_user"
+required
+/>
+
+<label for="receiver_country">Destination Country</label>
+
+<select id="receiver_country" required>
+<option value="BR">Brazil</option>
+<option value="MX">Mexico</option>
+<option value="NG">Nigeria</option>
+<option value="PH">Philippines</option>
+</select>
+
+<label for="amount">Amount</label>
+
+<input
+id="amount"
+type="number"
+inputmode="decimal"
+min="1"
+step="0.01"
+value="10"
+required
+/>
+
+<button type="button" onclick="start()">
+Start transfer
+</button>
+
+<script>
+
+const tg = window.Telegram.WebApp;
+
+tg.ready();
+tg.expand();
+
+/*
+--------------------------------------------------
+Autofill sender_id from Telegram
+--------------------------------------------------
+*/
+
+if (tg.initDataUnsafe?.user?.id) {
+
+  const sender =
+    document.getElementById("sender_id");
+
+  sender.value =
+    "tg_" + tg.initDataUnsafe.user.id;
+
+  sender.readOnly = true;
+
+}
+
+/*
+--------------------------------------------------
+Basic client validation
+--------------------------------------------------
+*/
+
+function getFormData() {
+
+  const sender_id =
+    document.getElementById("sender_id").value.trim();
+
+  const receiver_country =
+    document.getElementById("receiver_country").value;
+
+  const amount =
+    Number(document.getElementById("amount").value);
+
+  if (!sender_id)
+    throw new Error("missing_sender_id");
+
+  if (!receiver_country)
+    throw new Error("missing_receiver_country");
+
+  if (!amount || amount <= 0)
+    throw new Error("invalid_amount");
+
+  return {
+    sender_id,
+    receiver_country,
+    amount
+  };
+
+}
+
+</script>
+
+<script src="app.js"></script>
+
+</body>
+
+</html>

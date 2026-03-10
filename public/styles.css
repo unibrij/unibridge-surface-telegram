@@ -1,0 +1,167 @@
+// unibridge-surface-telegram/public/styles.css
+
+/*
+==================================================
+UniBridge Telegram Surface UI
+==================================================
+*/
+
+:root {
+
+  --bg: #ffffff;
+  --text: #111111;
+  --border: #e5e5e5;
+  --primary: #2a7dfc;
+  --primary-hover: #1f6ae0;
+  --radius: 10px;
+
+}
+
+body {
+
+  margin: 0;
+  padding: 20px;
+
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
+
+  background: var(--bg);
+  color: var(--text);
+
+}
+
+/*
+==================================================
+Layout
+==================================================
+*/
+
+.container {
+
+  max-width: 420px;
+  margin: auto;
+
+}
+
+/*
+==================================================
+Header
+==================================================
+*/
+
+h2 {
+
+  margin-bottom: 20px;
+  font-size: 20px;
+  font-weight: 600;
+
+}
+
+/*
+==================================================
+Form
+==================================================
+*/
+
+label {
+
+  display: block;
+  font-size: 13px;
+  margin-top: 16px;
+  margin-bottom: 6px;
+  color: #666;
+
+}
+
+input,
+select {
+
+  width: 100%;
+
+  padding: 12px;
+
+  border-radius: var(--radius);
+
+  border: 1px solid var(--border);
+
+  font-size: 15px;
+
+  box-sizing: border-box;
+
+  background: #fff;
+
+}
+
+input:focus,
+select:focus {
+
+  outline: none;
+
+  border-color: var(--primary);
+
+}
+
+/*
+==================================================
+Button
+==================================================
+*/
+
+button {
+
+  margin-top: 24px;
+
+  width: 100%;
+
+  padding: 14px;
+
+  border: none;
+
+  border-radius: var(--radius);
+
+  font-size: 16px;
+
+  font-weight: 600;
+
+  background: var(--primary);
+
+  color: white;
+
+  cursor: pointer;
+
+  transition: background 0.2s ease;
+
+}
+
+button:hover {
+
+  background: var(--primary-hover);
+
+}
+
+button:disabled {
+
+  opacity: 0.6;
+
+  cursor: not-allowed;
+
+}
+
+/*
+==================================================
+Mobile optimization
+==================================================
+*/
+
+@media (max-width: 480px) {
+
+  body {
+    padding: 16px;
+  }
+
+}

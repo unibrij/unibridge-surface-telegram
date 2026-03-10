@@ -13,25 +13,13 @@
 
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
-<style>
-
-body{
-  font-family: system-ui, sans-serif;
-  padding:20px;
-}
-
-input, select, button{
-  width:100%;
-  padding:12px;
-  font-size:16px;
-  margin-top:6px;
-}
-
-</style>
+<link rel="stylesheet" href="styles.css">
 
 </head>
 
 <body>
+
+<div class="container">
 
 <h2>Send Money</h2>
 
@@ -67,12 +55,18 @@ required
 Start transfer
 </button>
 
+</div>
+
 <script>
 
-const tg = window.Telegram.WebApp;
+const tg = window.Telegram?.WebApp;
 
-tg.ready();
-tg.expand();
+if (tg) {
+
+  tg.ready();
+  tg.expand();
+
+}
 
 /*
 --------------------------------------------------
@@ -80,7 +74,7 @@ Autofill sender_id from Telegram
 --------------------------------------------------
 */
 
-if (tg.initDataUnsafe?.user?.id) {
+if (tg?.initDataUnsafe?.user?.id) {
 
   const sender =
     document.getElementById("sender_id");

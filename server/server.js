@@ -20,8 +20,7 @@ CONFIG
 -----------------------------------------
 */
 
-const API_BASE =
-"https://unibridge-v2-vqia6yp7wq-uc.a.run.app/v2";
+const API_BASE = process.env.UNIBRIDGE_API_BASE;
 
 const PARTNER_ID =
 "surface";

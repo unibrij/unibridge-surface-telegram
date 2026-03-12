@@ -79,17 +79,11 @@ READ FORM
 
 function readForm(){
 
-const sender_id =
-document.getElementById("sender_id").value.trim();
-
 const receiver_country =
 document.getElementById("receiver_country").value;
 
 const amount =
 Number(document.getElementById("amount").value);
-
-if(!sender_id)
-throw new Error("missing_sender_id");
 
 if(!receiver_country)
 throw new Error("missing_receiver_country");
@@ -98,7 +92,6 @@ if(!amount || amount<=0)
 throw new Error("invalid_amount");
 
 return {
-sender_id,
 receiver_country,
 amount
 };
@@ -114,7 +107,7 @@ MAIN FLOW
 async function start(){
 
 const btn =
-document.querySelector("button");
+document.getElementById("sendBtn");
 
 try{
 
@@ -133,11 +126,8 @@ const register =
 await api(
 "session/register",
 {
-partner_id:"surface",
-sender_id:form.sender_id,
-sender_country:"USA",
-receiver_country:form.receiver_country,
-amount:form.amount
+source_country:"US",
+receiver_country:form.receiver_country
 }
 );
 
@@ -153,7 +143,6 @@ register.session_id;
 await api(
 "session/resolve",
 {
-partner_id:"surface",
 session_id
 }
 );
@@ -168,8 +157,8 @@ const quote =
 await api(
 "session/quote",
 {
-partner_id:"surface",
-session_id
+session_id,
+amount:form.amount
 }
 );
 
@@ -229,8 +218,12 @@ OPEN RAMP
 --------------------------------
 */
 
-window.location.href =
-widget_url;
+if(tg && tg.openLink){
+tg.openLink(widget_url);
+}
+else{
+window.location.href = widget_url;
+}
 
 }
 catch(err){
@@ -239,7 +232,15 @@ console.error(err);
 
 showError(err.message || "transfer_failed");
 
+}
+finally{
+
+const btn =
+document.getElementById("sendBtn");
+
+if(btn){
 btn.disabled = false;
+}
 
 }
 

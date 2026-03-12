@@ -27,6 +27,7 @@ width:100%;
 font-weight:700;
 font-size:20px;
 margin-bottom:20px;
+color:#003366;
 }
 
 .steps{
@@ -51,6 +52,7 @@ font-weight:600;
 border:1px solid #e5edf3;
 border-radius:14px;
 padding:24px;
+background:#ffffff;
 }
 
 .summary{
@@ -65,6 +67,7 @@ h2{
 margin-top:0;
 margin-bottom:20px;
 font-size:22px;
+color:#003366;
 }
 
 input,select,button{
@@ -156,13 +159,15 @@ UniBridge
 <option value="BR">Brazil</option>
 </select>
 
-<button id="sendBtn">Send</button>
+<button id="sendBtn">Start transfer</button>
 
 <div id="pixBox">
 
 <h3>PIX key</h3>
 
 <input id="pix" placeholder="Enter PIX key"/>
+
+<input id="taxId" placeholder="CPF / CNPJ"/>
 
 <button id="continueBtn">Continue</button>
 
@@ -312,9 +317,14 @@ try{
 continueBtn.disabled=true
 
 const pix=document.getElementById("pix").value.trim()
+const tax_id=document.getElementById("taxId").value.trim()
 
 if(!pix){
 throw new Error("PIX required")
+}
+
+if(!tax_id){
+throw new Error("CPF or CNPJ required")
 }
 
 const amount=Number(document.getElementById("amount").value)
@@ -327,11 +337,15 @@ if(!quote.routes?.length){
 throw new Error("No routes available")
 }
 
-routeId=quote.routes[0].route_id
+routeId=quote.routes[0].route_id || quote.routes[0].id
 
 setStatus("Creating settlement...")
 
-const create=await api("settlement/create",{session_id:sessionId,route_id:routeId,destination:{pix}})
+const create=await api("settlement/create",{
+session_id:sessionId,
+route_id:routeId,
+destination:{pix,tax_id}
+})
 
 settlementId=create.settlement_id
 
@@ -410,8 +424,6 @@ data=await r.json()
 }catch{
 data={}
 }
-
-/* UI STATE */
 
 if(data.status==="submitted"){
 
@@ -516,6 +528,7 @@ window.addEventListener("focus",()=>{
 
 if(!settlementId) return
 if(poller) return
+if(confirming) return
 
 confirmSettlement()
 

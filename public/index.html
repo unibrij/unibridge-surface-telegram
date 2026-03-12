@@ -1,129 +1,507 @@
 // unibridge-surface-telegram/public/index.html
 
-<!DOCTYPE html>
-<html>
+<!DOCTYPE html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>UniBridge</title><style>
 
-<head>
+body{
+font-family:system-ui,-apple-system,Segoe UI,Roboto;
+background:#ffffff;
+margin:0;
+padding:40px 20px;
+display:flex;
+justify-content:center;
+}
 
-<meta charset="UTF-8">
+.container{
+max-width:420px;
+width:100%;
+}
 
-<meta name="viewport" content="width=device-width, initial-scale=1">
+.logo{
+font-weight:700;
+font-size:20px;
+margin-bottom:20px;
+}
 
-<title>UniBridge Wallet</title>
+.steps{
+display:flex;
+justify-content:space-between;
+margin-bottom:20px;
+font-size:12px;
+color:#999;
+}
 
-<script src="https://telegram.org/js/telegram-web-app.js"></script>
+.step{
+flex:1;
+text-align:center;
+}
 
-<link rel="stylesheet" href="styles.css">
+.step.active{
+color:#111;
+font-weight:600;
+}
 
-</head>
+.card{
+border:1px solid #eee;
+border-radius:14px;
+padding:24px;
+}
 
-<body>
+.summary{
+background:#f7f7f7;
+border-radius:10px;
+padding:12px;
+margin-bottom:15px;
+font-size:14px;
+}
 
-<div class="container">
+h2{
+margin-top:0;
+margin-bottom:20px;
+font-size:22px;
+}
 
-<h2>Send Money</h2>
+input,select,button{
+width:100%;
+padding:14px;
+margin-top:10px;
+font-size:16px;
+border-radius:10px;
+}
 
-<label for="sender_id">Sender ID</label>
-<input
-id="sender_id"
-placeholder="telegram_user"
-required
-/>
+input,select{
+border:1px solid #ddd;
+}
 
-<label for="receiver_country">Destination Country</label>
+button{
+background:#111;
+color:white;
+border:none;
+cursor:pointer;
+font-weight:600;
+}
 
-<select id="receiver_country" required>
-<option value="BR">Brazil</option>
-<option value="MX">Mexico</option>
-<option value="NG">Nigeria</option>
-<option value="PH">Philippines</option>
-</select>
+button:disabled{
+opacity:.5;
+cursor:not-allowed;
+}
 
-<label for="amount">Amount</label>
+#pixBox{
+display:none;
+margin-top:10px;
+}
 
-<input
+#status{
+margin-top:18px;
+font-size:14px;
+color:#666;
+}
+
+.status-success{
+color:#0a7d33;
+font-weight:600;
+}
+
+.status-error{
+color:#c62828;
+font-weight:600;
+}
+
+</style></head><body><div class="container"><div class="logo">
+UniBridge
+</div><div class="steps"><div id="step1" class="step active">Setup</div>
+<div id="step2" class="step">Route</div>
+<div id="step3" class="step">Payment</div>
+<div id="step4" class="step">Processing</div>
+<div id="step5" class="step">Done</div></div><div class="card"><h2>Send money</h2><div id="summary" class="summary" style="display:none"><div><strong>You send</strong>: <span id="sumAmount"></span></div>
+<div><strong>Recipient</strong>: <span id="sumCountry"></span></div>
+<div><strong>Route</strong>: PIX Instant</div></div><input
 id="amount"
 type="number"
-inputmode="decimal"
-min="1"
-step="0.01"
+placeholder="Amount"
 value="10"
-required
 />
 
-<button type="button" onclick="start()">
-Start transfer
-</button>
+<select id="country">
+<option value="BR">Brazil</option>
+</select><button id="sendBtn">
+Send
+</button><div id="pixBox"><h3>PIX key</h3><input id="pix" placeholder="Enter PIX key"/><button id="continueBtn">
+Continue
+</button></div><div id="status"></div></div>
+</div><script src="https://telegram.org/js/telegram-web-app.js"></script><script>
 
-</div>
+const tg = window.Telegram?.WebApp
 
-<script>
+if(tg){
+tg.expand()
+}
 
-const tg = window.Telegram?.WebApp;
+let sessionId = null
+let routeId = null
+let settlementId = null
+let poller = null
+let confirmed = false
 
-if (tg) {
+const sendBtn = document.getElementById("sendBtn")
+const continueBtn = document.getElementById("continueBtn")
+const statusBox = document.getElementById("status")
 
-  tg.ready();
-  tg.expand();
+function setStep(n){
+
+for(let i=1;i<=5;i++){
+document.getElementById("step"+i).classList.remove("active")
+}
+
+document.getElementById("step"+n).classList.add("active")
 
 }
 
-/*
---------------------------------------------------
-Autofill sender_id from Telegram
---------------------------------------------------
-*/
+function setStatus(msg,type){
 
-if (tg?.initDataUnsafe?.user?.id) {
+statusBox.innerText = msg
+statusBox.className=""
 
-  const sender =
-    document.getElementById("sender_id");
+if(type==="success"){
+statusBox.classList.add("status-success")
+}
 
-  sender.value =
-    "tg_" + tg.initDataUnsafe.user.id;
-
-  sender.readOnly = true;
+if(type==="error"){
+statusBox.classList.add("status-error")
+}
 
 }
 
-/*
---------------------------------------------------
-Basic client validation
---------------------------------------------------
-*/
+function updateSummary(){
 
-function getFormData() {
+const amount =
+document.getElementById("amount").value
 
-  const sender_id =
-    document.getElementById("sender_id").value.trim();
+const country =
+document.getElementById("country").value
 
-  const receiver_country =
-    document.getElementById("receiver_country").value;
+document.getElementById("sumAmount").innerText =
+amount + " USD"
 
-  const amount =
-    Number(document.getElementById("amount").value);
+document.getElementById("sumCountry").innerText =
+country
 
-  if (!sender_id)
-    throw new Error("missing_sender_id");
-
-  if (!receiver_country)
-    throw new Error("missing_receiver_country");
-
-  if (!amount || amount <= 0)
-    throw new Error("invalid_amount");
-
-  return {
-    sender_id,
-    receiver_country,
-    amount
-  };
+document.getElementById("summary").style.display="block"
 
 }
 
-</script>
+async function api(path,payload){
 
-<script src="app.js"></script>
+const r = await fetch("/api/"+path,{
+method:"POST",
+headers:{ "content-type":"application/json" },
+body:JSON.stringify(payload)
+})
 
-</body>
+const text = await r.text()
 
+let data
+
+try{
+data = JSON.parse(text)
+}catch{
+data = { error:"invalid_response" }
+}
+
+if(!r.ok){
+throw new Error(data.error || "api_error")
+}
+
+return data
+
+}
+
+/* REGISTER + RESOLVE */
+
+async function startFlow(){
+
+try{
+
+sendBtn.disabled=true
+
+updateSummary()
+
+setStep(1)
+
+setStatus("Registering...")
+
+const amount =
+Number(document.getElementById("amount").value)
+
+if(!amount || amount<=0){
+throw new Error("Invalid amount")
+}
+
+const country =
+document.getElementById("country").value
+
+const reg = await api(
+"session/register",
+{
+source_country:"US",
+receiver_country:country
+}
+)
+
+sessionId = reg.session_id
+
+setStatus("Resolving route...")
+
+const resolve = await api(
+"session/resolve",
+{
+session_id:sessionId
+}
+)
+
+const execution =
+resolve?.delivery_options?.execution
+
+if(!execution?.pix){
+throw new Error("PIX route unavailable")
+}
+
+setStep(2)
+
+document.getElementById("pixBox").style.display="block"
+
+document.getElementById("pix").focus()
+
+setStatus("Enter PIX key")
+
+}
+catch(err){
+
+console.error(err)
+setStatus(err.message,"error")
+sendBtn.disabled=false
+
+}
+
+}
+
+/* QUOTE + CREATE + FUNDING */
+
+async function continueFlow(){
+
+try{
+
+continueBtn.disabled=true
+
+const pix =
+document.getElementById("pix").value.trim()
+
+if(!pix){
+throw new Error("PIX required")
+}
+
+const amount =
+Number(document.getElementById("amount").value)
+
+setStatus("Getting quote...")
+
+const quote = await api(
+"session/quote",
+{
+session_id:sessionId,
+amount
+}
+)
+
+if(!quote.routes?.length){
+throw new Error("No routes available")
+}
+
+routeId = quote.routes[0].route_id
+
+setStatus("Creating settlement...")
+
+const create = await api(
+"settlement/create",
+{
+session_id:sessionId,
+route_id:routeId,
+destination:{ pix }
+}
+)
+
+settlementId = create.settlement_id
+
+localStorage.setItem("ub_settlement",settlementId)
+
+setStatus("Preparing payment...")
+
+const funding = await api(
+"funding/session",
+{
+settlement_id:settlementId
+}
+)
+
+if(!funding.widget_url){
+throw new Error("Ramp unavailable")
+}
+
+setStep(3)
+
+if(tg?.openLink){
+tg.openLink(funding.widget_url)
+}else{
+window.location.href=funding.widget_url
+}
+
+}
+catch(err){
+
+console.error(err)
+setStatus(err.message,"error")
+continueBtn.disabled=false
+
+}
+
+}
+
+/* AUTO RESUME AFTER RETURN */
+
+window.addEventListener("focus",()=>{
+
+if(!settlementId) return
+if(confirmed) return
+
+confirmed = true
+
+confirmSettlement()
+
+})
+
+/* CONFIRM */
+
+async function confirmSettlement(){
+
+try{
+
+setStep(4)
+
+setStatus("Confirming payment...")
+
+await api(
+"settlement/confirm",
+{
+settlement_id:settlementId
+}
+)
+
+startPolling()
+
+}
+catch(err){
+
+console.error(err)
+setStatus("Confirm failed","error")
+
+}
+
+}
+
+/* STATUS POLLING */
+
+function startPolling(){
+
+setStatus("Processing transfer...")
+
+poller=setInterval(async ()=>{
+
+try{
+
+const r =
+await fetch(
+"/api/settlement/status?settlement_id="+settlementId
+)
+
+const text = await r.text()
+
+let data
+
+try{
+data = JSON.parse(text)
+}catch{
+data = { status:"unknown" }
+}
+
+const labels={
+submitted:"Processing",
+executing:"Processing",
+completed:"Transfer completed",
+failed:"Transfer failed"
+}
+
+setStatus(labels[data.status] || data.status)
+
+if(data.status==="completed"){
+
+clearInterval(poller)
+
+setStep(5)
+
+setStatus("Transfer completed","success")
+
+localStorage.removeItem("ub_settlement")
+
+}
+
+if(data.status==="failed"){
+
+clearInterval(poller)
+
+setStatus("Transfer failed","error")
+
+localStorage.removeItem("ub_settlement")
+
+}
+
+}
+catch(e){
+
+console.error(e)
+
+}
+
+},3000)
+
+}
+
+/* RESTORE SESSION */
+
+window.addEventListener("load",()=>{
+
+const saved =
+localStorage.getItem("ub_settlement")
+
+if(saved){
+
+settlementId = saved
+
+confirmed = true
+
+setStep(4)
+
+startPolling()
+
+}
+
+})
+
+window.addEventListener("beforeunload",()=>{
+if(poller) clearInterval(poller)
+})
+
+sendBtn.onclick=startFlow
+continueBtn.onclick=continueFlow
+
+</script></body>
 </html>

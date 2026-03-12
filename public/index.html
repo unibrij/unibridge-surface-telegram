@@ -1,7 +1,7 @@
-
-
-<!DOCTYPE html><html><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1"><title>UniBridge</title><style>
+<!DOCTYPE html><html><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>UniBridge</title><style>
 
 body{
 font-family:system-ui,-apple-system,Segoe UI,Roboto;
@@ -109,20 +109,27 @@ font-weight:600;
 
 </style></head><body><div class="container"><div class="logo">
 UniBridge
-</div><div class="steps"><div id="step1" class="step active">Setup</div>
+</div><div class="steps">
+<div id="step1" class="step active">Setup</div>
 <div id="step2" class="step">Route</div>
 <div id="step3" class="step">Payment</div>
 <div id="step4" class="step">Processing</div>
-<div id="step5" class="step">Done</div></div><div class="card"><h2>Send money</h2><div id="summary" class="summary" style="display:none"><div><strong>You send</strong>: <span id="sumAmount"></span></div>
+<div id="step5" class="step">Done</div>
+</div><div class="card"><h2>Send money</h2><div id="summary" class="summary" style="display:none">
+<div><strong>You send</strong>: <span id="sumAmount"></span></div>
 <div><strong>Recipient</strong>: <span id="sumCountry"></span></div>
-<div><strong>Route</strong>: PIX Instant</div></div><input
+<div><strong>Route</strong>: PIX Instant</div>
+</div><input
 id="amount"
 type="number"
 placeholder="Amount"
 value="10"
 />
 
-<select id="country">
+<select id="source_country">
+<option value="US">United States</option>
+<option value="EU">Europe</option>
+</select><select id="country">
 <option value="BR">Brazil</option>
 </select><button id="sendBtn">
 Send
@@ -240,10 +247,13 @@ throw new Error("Invalid amount")
 const country =
 document.getElementById("country").value
 
+const source =
+document.getElementById("source_country").value
+
 const reg = await api(
 "session/register",
 {
-source_country:"US",
+source_country:source,
 receiver_country:country
 }
 )

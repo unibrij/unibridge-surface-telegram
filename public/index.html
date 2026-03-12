@@ -1,7 +1,13 @@
-<!DOCTYPE html><html><head>
+<!DOCTYPE html>
+<html>
+<head>
+
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>UniBridge</title><style>
+
+<title>UniBridge</title>
+
+<style>
 
 body{
 font-family:system-ui,-apple-system,Segoe UI,Roboto;
@@ -107,19 +113,39 @@ color:#c62828;
 font-weight:600;
 }
 
-</style></head><body><div class="container"><div class="logo">
+</style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+<div class="logo">
 UniBridge
-</div><div class="steps">
+</div>
+
+<div class="steps">
 <div id="step1" class="step active">Setup</div>
 <div id="step2" class="step">Route</div>
 <div id="step3" class="step">Payment</div>
 <div id="step4" class="step">Processing</div>
 <div id="step5" class="step">Done</div>
-</div><div class="card"><h2>Send money</h2><div id="summary" class="summary" style="display:none">
+</div>
+
+<div class="card">
+
+<h2>Send money</h2>
+
+<div id="summary" class="summary" style="display:none">
+
 <div><strong>You send</strong>: <span id="sumAmount"></span></div>
 <div><strong>Recipient</strong>: <span id="sumCountry"></span></div>
 <div><strong>Route</strong>: PIX Instant</div>
-</div><input
+
+</div>
+
+<input
 id="amount"
 type="number"
 placeholder="Amount"
@@ -129,14 +155,36 @@ value="10"
 <select id="source_country">
 <option value="US">United States</option>
 <option value="EU">Europe</option>
-</select><select id="country">
+</select>
+
+<select id="country">
 <option value="BR">Brazil</option>
-</select><button id="sendBtn">
+</select>
+
+<button id="sendBtn">
 Send
-</button><div id="pixBox"><h3>PIX key</h3><input id="pix" placeholder="Enter PIX key"/><button id="continueBtn">
+</button>
+
+<div id="pixBox">
+
+<h3>PIX key</h3>
+
+<input id="pix" placeholder="Enter PIX key"/>
+
+<button id="continueBtn">
 Continue
-</button></div><div id="status"></div></div>
-</div><script src="https://telegram.org/js/telegram-web-app.js"></script><script>
+</button>
+
+</div>
+
+<div id="status"></div>
+
+</div>
+</div>
+
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+<script>
 
 const tg = window.Telegram?.WebApp
 
@@ -199,7 +247,7 @@ document.getElementById("summary").style.display="block"
 
 async function api(path,payload){
 
-const r = await fetch("/api/"+path,{
+const r = await fetch("/api/proxy?endpoint="+path,{
 method:"POST",
 headers:{ "content-type":"application/json" },
 body:JSON.stringify(payload)
@@ -430,7 +478,7 @@ try{
 
 const r =
 await fetch(
-"/api/settlement/status?settlement_id="+settlementId
+"/api/proxy?endpoint=settlement/status&settlement_id="+settlementId
 )
 
 const text = await r.text()
@@ -485,33 +533,10 @@ console.error(e)
 
 }
 
-/* RESTORE SESSION */
-
-window.addEventListener("load",()=>{
-
-const saved =
-localStorage.getItem("ub_settlement")
-
-if(saved){
-
-settlementId = saved
-
-confirmed = true
-
-setStep(4)
-
-startPolling()
-
-}
-
-})
-
-window.addEventListener("beforeunload",()=>{
-if(poller) clearInterval(poller)
-})
-
 sendBtn.onclick=startFlow
 continueBtn.onclick=continueFlow
 
-</script></body>
+</script>
+
+</body>
 </html>

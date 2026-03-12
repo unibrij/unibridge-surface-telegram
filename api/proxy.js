@@ -9,7 +9,8 @@ const ALLOWED = new Set([
 "session/quote",
 "settlement/create",
 "settlement/confirm",
-"funding/session"
+"funding/session",
+"settlement/status"
 ]);
 
 export default async function handler(req,res){
@@ -22,13 +23,16 @@ error:"server_misconfigured"
 });
 }
 
-if(req.method !== "POST"){
-return res.status(405).json({
-error:"method_not_allowed"
-});
-}
+/*
+------------------------------
+endpoint normalization
+------------------------------
+*/
 
-const endpoint = req.query.endpoint;
+const endpoint =
+(req.query.endpoint || "")
+.replace(/^\/+/,"")
+.replace(/\/+$/,"");
 
 if(!endpoint){
 return res.status(400).json({
@@ -42,8 +46,79 @@ error:"endpoint_not_allowed"
 });
 }
 
+/*
+------------------------------
+STATUS ENDPOINT (GET)
+------------------------------
+*/
+
+if(endpoint === "settlement/status"){
+
+if(req.method !== "GET"){
+return res.status(405).json({
+error:"method_not_allowed"
+});
+}
+
+const params = new URLSearchParams();
+
+if(req.query.settlement_id){
+params.set("settlement_id", req.query.settlement_id);
+}
+
+const query = params.toString();
+
+const upstream =
+await fetch(
+`${API_BASE}/settlement/status?${query}`,
+{
+method:"GET",
+headers:{
+"x-ub-partner-id":"surface"
+}
+}
+);
+
+const text = await upstream.text();
+
+let data;
+
+try{
+data = JSON.parse(text);
+}catch{
+data = {raw:text};
+}
+
+return res
+.status(upstream.status)
+.json(data);
+
+}
+
+/*
+------------------------------
+POST ENDPOINTS
+------------------------------
+*/
+
+if(req.method !== "POST"){
+return res.status(405).json({
+error:"method_not_allowed"
+});
+}
+
 const payload =
 JSON.stringify(req.body || {});
+
+/*
+payload protection
+*/
+
+if(payload.length > 10000){
+return res.status(413).json({
+error:"payload_too_large"
+});
+}
 
 const signature =
 crypto
@@ -92,8 +167,7 @@ let data;
 
 try{
 data = JSON.parse(text);
-}
-catch{
+}catch{
 data = {raw:text};
 }
 

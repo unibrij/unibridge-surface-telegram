@@ -22,11 +22,13 @@ CONFIG
 
 const API_BASE = process.env.UNIBRIDGE_API_BASE;
 
-const PARTNER_ID =
-"surface";
+if (!API_BASE) {
+throw new Error("UNIBRIDGE_API_BASE missing");
+}
 
-const SECRET =
-process.env.SURFACE_HMAC_SECRET;
+const PARTNER_ID = "surface";
+
+const SECRET = process.env.SURFACE_HMAC_SECRET;
 
 if (!SECRET) {
 throw new Error("SURFACE_HMAC_SECRET missing");
@@ -73,7 +75,9 @@ app.post("/api/*", async (req,res)=>{
 try{
 
 const endpoint =
-req.path.replace(/^\/api\//,"");
+req.path
+.replace(/^\/api\//,"")
+.replace(/\/$/,"");
 
 if(!ALLOWED.has(endpoint)){
 
@@ -83,7 +87,7 @@ error:"endpoint_not_allowed"
 
 }
 
-if (typeof req.body !== "object") {
+if (!req.body || typeof req.body !== "object" || Array.isArray(req.body)) {
 
 return res.status(400).json({
 error:"invalid_payload"
@@ -135,14 +139,10 @@ await r.text();
 let data;
 
 try{
-
 data = JSON.parse(text);
-
 }
 catch{
-
 data = { raw:text };
-
 }
 
 res.status(r.status).json(data);

@@ -375,8 +375,6 @@ setStatus("Confirming payment...")
 
 await api("settlement/confirm",{settlement_id:settlementId})
 
-setStep(5)
-
 setStatus("Payment confirmed","success")
 
 startPolling()
@@ -392,7 +390,7 @@ setStatus("Confirm failed","error")
 
 }
 
-/* BACKGROUND POLLING */
+/* POLLING */
 
 function startPolling(){
 
@@ -413,10 +411,42 @@ data=await r.json()
 data={}
 }
 
-if(data.status==="completed" || data.status==="failed"){
+/* UI STATE */
+
+if(data.status==="submitted"){
+
+setStep(4)
+setStatus("Transfer submitted")
+
+}
+
+if(data.status==="executing"){
+
+setStep(4)
+setStatus("Transfer executing")
+
+}
+
+if(data.status==="completed"){
 
 clearInterval(poller)
 poller=null
+
+setStep(5)
+setStatus("Transfer completed","success")
+
+localStorage.removeItem("ub_settlement")
+settlementId=null
+
+}
+
+if(data.status==="failed"){
+
+clearInterval(poller)
+poller=null
+
+setStep(5)
+setStatus("Transfer failed","error")
 
 localStorage.removeItem("ub_settlement")
 settlementId=null
@@ -434,20 +464,47 @@ console.error(e)
 
 /* RESUME AFTER REFRESH */
 
-window.addEventListener("load",()=>{
+window.addEventListener("load",async ()=>{
 
 statusBox.innerText=""
 statusBox.className=""
 
 const saved=localStorage.getItem("ub_settlement")
 
-if(saved){
+if(!saved) return
+
+try{
 
 settlementId=saved
 
-setStep(4)
+const r=await fetch("/api/proxy?endpoint=settlement/status&settlement_id="+settlementId)
 
-confirmSettlement()
+let data
+
+try{
+data=await r.json()
+}catch{
+data={}
+}
+
+if(data.status==="submitted" || data.status==="executing"){
+
+setStep(4)
+startPolling()
+
+}else{
+
+localStorage.removeItem("ub_settlement")
+settlementId=null
+setStep(1)
+
+}
+
+}catch(e){
+
+localStorage.removeItem("ub_settlement")
+settlementId=null
+setStep(1)
 
 }
 

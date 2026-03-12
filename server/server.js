@@ -4,9 +4,9 @@ import express from "express";
 import crypto from "crypto";
 
 /*
------------------------------------------
+
 APP INIT
------------------------------------------
+
 */
 
 const app = express();
@@ -15,9 +15,9 @@ app.use(express.json());
 app.use(express.static("public"));
 
 /*
------------------------------------------
+
 CONFIG
------------------------------------------
+
 */
 
 const API_BASE = process.env.UNIBRIDGE_API_BASE;
@@ -35,9 +35,9 @@ throw new Error("SURFACE_HMAC_SECRET missing");
 }
 
 /*
------------------------------------------
-ALLOWED ENDPOINTS
------------------------------------------
+
+ALLOWED POST ENDPOINTS
+
 */
 
 const ALLOWED = new Set([
@@ -50,9 +50,9 @@ const ALLOWED = new Set([
 ]);
 
 /*
------------------------------------------
+
 SIGN PAYLOAD
------------------------------------------
+
 */
 
 function sign(payload){
@@ -65,9 +65,9 @@ return crypto
 }
 
 /*
------------------------------------------
-UNIBRIDGE PROXY
------------------------------------------
+
+UNIBRIDGE POST PROXY
+
 */
 
 app.post("/api/*", async (req,res)=>{
@@ -76,8 +76,8 @@ try{
 
 const endpoint =
 req.path
-.replace(/^\/api\//,"")
-.replace(/\/$/,"");
+.replace(/^/api//,"")
+.replace(//$/,"");
 
 if(!ALLOWED.has(endpoint)){
 
@@ -102,9 +102,9 @@ const signature =
 sign(payload);
 
 /*
------------------------------------------
+
 TIMEOUT PROTECTION
------------------------------------------
+
 */
 
 const controller =
@@ -116,9 +116,13 @@ setTimeout(
 15000
 );
 
-const r =
+let upstream;
+
+try{
+
+upstream =
 await fetch(
-`${API_BASE}/${endpoint}`,
+${API_BASE}/${endpoint},
 {
 method:"POST",
 headers:{
@@ -131,10 +135,15 @@ signal:controller.signal
 }
 );
 
+}
+finally{
+
 clearTimeout(timeout);
 
+}
+
 const text =
-await r.text();
+await upstream.text();
 
 let data;
 
@@ -145,7 +154,7 @@ catch{
 data = { raw:text };
 }
 
-res.status(r.status).json(data);
+res.status(upstream.status).json(data);
 
 }
 catch(err){
@@ -170,9 +179,68 @@ message:err.message
 });
 
 /*
------------------------------------------
+
+GET STATUS PROXY
+
+*/
+
+app.get("/api/settlement/status", async (req,res)=>{
+
+try{
+
+if(!req.query.settlement_id){
+
+return res.status(400).json({
+error:"missing_settlement_id"
+});
+
+}
+
+const query =
+new URLSearchParams(req.query).toString();
+
+const upstream =
+await fetch(
+${API_BASE}/settlement/status?${query},
+{
+method:"GET",
+headers:{
+"x-ub-partner-id":PARTNER_ID
+}
+}
+);
+
+const text =
+await upstream.text();
+
+let data;
+
+try{
+data = JSON.parse(text);
+}
+catch{
+data = { raw:text };
+}
+
+res.status(upstream.status).json(data);
+
+}
+catch(err){
+
+console.error("SURFACE_STATUS_PROXY_ERROR",err);
+
+res.status(500).json({
+error:"status_proxy_error"
+});
+
+}
+
+});
+
+/*
+
 HEALTH CHECK
------------------------------------------
+
 */
 
 app.get("/health",(req,res)=>{
@@ -185,9 +253,9 @@ service:"unibridge-surface"
 });
 
 /*
------------------------------------------
+
 SERVER START
------------------------------------------
+
 */
 
 const PORT =
@@ -196,7 +264,7 @@ process.env.PORT || 3000;
 app.listen(PORT,()=>{
 
 console.log(
-`unibridge surface running on port ${PORT}`
+"unibridge surface running on port ${PORT}"
 );
 
 });

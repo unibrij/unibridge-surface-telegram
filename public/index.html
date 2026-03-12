@@ -145,12 +145,7 @@ UniBridge
 
 </div>
 
-<input
-id="amount"
-type="number"
-placeholder="Amount"
-value="10"
-/>
+<input id="amount" type="number" placeholder="Amount" value="10"/>
 
 <select id="source_country">
 <option value="US">United States</option>
@@ -161,9 +156,7 @@ value="10"
 <option value="BR">Brazil</option>
 </select>
 
-<button id="sendBtn">
-Send
-</button>
+<button id="sendBtn">Send</button>
 
 <div id="pixBox">
 
@@ -171,9 +164,7 @@ Send
 
 <input id="pix" placeholder="Enter PIX key"/>
 
-<button id="continueBtn">
-Continue
-</button>
+<button id="continueBtn">Continue</button>
 
 </div>
 
@@ -187,20 +178,17 @@ Continue
 <script>
 
 const tg = window.Telegram?.WebApp
+if(tg){ tg.expand() }
 
-if(tg){
-tg.expand()
-}
+let sessionId=null
+let routeId=null
+let settlementId=null
+let poller=null
+let confirming=false
 
-let sessionId = null
-let routeId = null
-let settlementId = null
-let poller = null
-let confirmed = false
-
-const sendBtn = document.getElementById("sendBtn")
-const continueBtn = document.getElementById("continueBtn")
-const statusBox = document.getElementById("status")
+const sendBtn=document.getElementById("sendBtn")
+const continueBtn=document.getElementById("continueBtn")
+const statusBox=document.getElementById("status")
 
 function setStep(n){
 
@@ -214,53 +202,41 @@ document.getElementById("step"+n).classList.add("active")
 
 function setStatus(msg,type){
 
-statusBox.innerText = msg
+statusBox.innerText=msg
 statusBox.className=""
 
-if(type==="success"){
-statusBox.classList.add("status-success")
-}
-
-if(type==="error"){
-statusBox.classList.add("status-error")
-}
+if(type==="success"){statusBox.classList.add("status-success")}
+if(type==="error"){statusBox.classList.add("status-error")}
 
 }
 
 function updateSummary(){
 
-const amount =
-document.getElementById("amount").value
+const amount=document.getElementById("amount").value
+const country=document.getElementById("country").value
 
-const country =
-document.getElementById("country").value
-
-document.getElementById("sumAmount").innerText =
-amount + " USD"
-
-document.getElementById("sumCountry").innerText =
-country
-
+document.getElementById("sumAmount").innerText=amount+" USD"
+document.getElementById("sumCountry").innerText=country
 document.getElementById("summary").style.display="block"
 
 }
 
 async function api(path,payload){
 
-const r = await fetch("/api/proxy?endpoint="+path,{
+const r=await fetch("/api/proxy?endpoint="+path,{
 method:"POST",
 headers:{ "content-type":"application/json" },
 body:JSON.stringify(payload)
 })
 
-const text = await r.text()
+const text=await r.text()
 
 let data
 
 try{
-data = JSON.parse(text)
+data=JSON.parse(text)
 }catch{
-data = { error:"invalid_response" }
+return {}
 }
 
 if(!r.ok){
@@ -271,7 +247,7 @@ return data
 
 }
 
-/* REGISTER + RESOLVE */
+/* REGISTER */
 
 async function startFlow(){
 
@@ -285,40 +261,24 @@ setStep(1)
 
 setStatus("Registering...")
 
-const amount =
-Number(document.getElementById("amount").value)
+const amount=Number(document.getElementById("amount").value)
 
 if(!amount || amount<=0){
 throw new Error("Invalid amount")
 }
 
-const country =
-document.getElementById("country").value
+const country=document.getElementById("country").value
+const source=document.getElementById("source_country").value
 
-const source =
-document.getElementById("source_country").value
+const reg=await api("session/register",{source_country:source,receiver_country:country})
 
-const reg = await api(
-"session/register",
-{
-source_country:source,
-receiver_country:country
-}
-)
-
-sessionId = reg.session_id
+sessionId=reg.session_id
 
 setStatus("Resolving route...")
 
-const resolve = await api(
-"session/resolve",
-{
-session_id:sessionId
-}
-)
+const resolve=await api("session/resolve",{session_id:sessionId})
 
-const execution =
-resolve?.delivery_options?.execution
+const execution=resolve?.delivery_options?.execution
 
 if(!execution?.pix){
 throw new Error("PIX route unavailable")
@@ -343,7 +303,7 @@ sendBtn.disabled=false
 
 }
 
-/* QUOTE + CREATE + FUNDING */
+/* QUOTE + CREATE */
 
 async function continueFlow(){
 
@@ -351,55 +311,35 @@ try{
 
 continueBtn.disabled=true
 
-const pix =
-document.getElementById("pix").value.trim()
+const pix=document.getElementById("pix").value.trim()
 
 if(!pix){
 throw new Error("PIX required")
 }
 
-const amount =
-Number(document.getElementById("amount").value)
+const amount=Number(document.getElementById("amount").value)
 
 setStatus("Getting quote...")
 
-const quote = await api(
-"session/quote",
-{
-session_id:sessionId,
-amount
-}
-)
+const quote=await api("session/quote",{session_id:sessionId,amount})
 
 if(!quote.routes?.length){
 throw new Error("No routes available")
 }
 
-routeId = quote.routes[0].route_id
+routeId=quote.routes[0].route_id
 
 setStatus("Creating settlement...")
 
-const create = await api(
-"settlement/create",
-{
-session_id:sessionId,
-route_id:routeId,
-destination:{ pix }
-}
-)
+const create=await api("settlement/create",{session_id:sessionId,route_id:routeId,destination:{pix}})
 
-settlementId = create.settlement_id
+settlementId=create.settlement_id
 
 localStorage.setItem("ub_settlement",settlementId)
 
-setStatus("Preparing payment...")
+setStatus("Redirecting to payment...")
 
-const funding = await api(
-"funding/session",
-{
-settlement_id:settlementId
-}
-)
+const funding=await api("funding/session",{settlement_id:settlementId})
 
 if(!funding.widget_url){
 throw new Error("Ramp unavailable")
@@ -407,11 +347,7 @@ throw new Error("Ramp unavailable")
 
 setStep(3)
 
-if(tg?.openLink){
-tg.openLink(funding.widget_url)
-}else{
 window.location.href=funding.widget_url
-}
 
 }
 catch(err){
@@ -424,22 +360,12 @@ continueBtn.disabled=false
 
 }
 
-/* AUTO RESUME AFTER RETURN */
-
-window.addEventListener("focus",()=>{
-
-if(!settlementId) return
-if(confirmed) return
-
-confirmed = true
-
-confirmSettlement()
-
-})
-
-/* CONFIRM */
+/* CONFIRM PAYMENT */
 
 async function confirmSettlement(){
+
+if(confirming) return
+confirming=true
 
 try{
 
@@ -447,12 +373,11 @@ setStep(4)
 
 setStatus("Confirming payment...")
 
-await api(
-"settlement/confirm",
-{
-settlement_id:settlementId
-}
-)
+await api("settlement/confirm",{settlement_id:settlementId})
+
+setStep(5)
+
+setStatus("Payment confirmed","success")
 
 startPolling()
 
@@ -460,78 +385,84 @@ startPolling()
 catch(err){
 
 console.error(err)
+
 setStatus("Confirm failed","error")
 
 }
 
 }
 
-/* STATUS POLLING */
+/* BACKGROUND POLLING */
 
 function startPolling(){
 
-setStatus("Processing transfer...")
+if(!settlementId) return
+if(poller) return
 
 poller=setInterval(async ()=>{
 
 try{
 
-const r =
-await fetch(
-"/api/proxy?endpoint=settlement/status&settlement_id="+settlementId
-)
-
-const text = await r.text()
+const r=await fetch("/api/proxy?endpoint=settlement/status&settlement_id="+settlementId)
 
 let data
 
 try{
-data = JSON.parse(text)
+data=await r.json()
 }catch{
-data = { status:"unknown" }
+data={}
 }
 
-const labels={
-submitted:"Processing",
-executing:"Processing",
-completed:"Transfer completed",
-failed:"Transfer failed"
-}
-
-setStatus(labels[data.status] || data.status)
-
-if(data.status==="completed"){
+if(data.status==="completed" || data.status==="failed"){
 
 clearInterval(poller)
-
-setStep(5)
-
-setStatus("Transfer completed","success")
+poller=null
 
 localStorage.removeItem("ub_settlement")
-
-}
-
-if(data.status==="failed"){
-
-clearInterval(poller)
-
-setStatus("Transfer failed","error")
-
-localStorage.removeItem("ub_settlement")
+settlementId=null
 
 }
 
 }
 catch(e){
-
 console.error(e)
+}
+
+},5000)
 
 }
 
-},3000)
+/* RESUME AFTER REFRESH */
+
+window.addEventListener("load",()=>{
+
+statusBox.innerText=""
+statusBox.className=""
+
+const saved=localStorage.getItem("ub_settlement")
+
+if(saved){
+
+settlementId=saved
+
+setStep(4)
+
+confirmSettlement()
 
 }
+
+})
+
+/* RETURN FROM PAYMENT */
+
+window.addEventListener("focus",()=>{
+
+if(!settlementId) return
+if(poller) return
+
+confirmSettlement()
+
+})
 
 sendBtn.onclick=startFlow
 continueBtn.onclick=continueFlow

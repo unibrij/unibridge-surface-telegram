@@ -61,6 +61,11 @@ border-radius:10px;
 padding:12px;
 margin-bottom:15px;
 font-size:14px;
+display:none;
+}
+
+.summary div{
+margin:6px 0;
 }
 
 h2{
@@ -70,12 +75,20 @@ font-size:22px;
 color:#003366;
 }
 
+h3{
+margin-top:18px;
+margin-bottom:8px;
+font-size:16px;
+color:#003366;
+}
+
 input,select,button{
 width:100%;
 padding:14px;
 margin-top:10px;
 font-size:16px;
 border-radius:10px;
+box-sizing:border-box;
 }
 
 input,select{
@@ -116,6 +129,12 @@ color:#c62828;
 font-weight:600;
 }
 
+.muted{
+font-size:12px;
+color:#6b7280;
+margin-top:8px;
+}
+
 </style>
 
 </head>
@@ -140,15 +159,14 @@ UniBridge
 
 <h2>Send money</h2>
 
-<div id="summary" class="summary" style="display:none">
-
-<div><strong>You send</strong>: <span id="sumAmount"></span></div>
-<div><strong>Recipient</strong>: <span id="sumCountry"></span></div>
-<div><strong>Route</strong>: PIX Instant</div>
-
+<div id="summary" class="summary">
+<div><strong>You pay</strong>: <span id="sumFunding"></span></div>
+<div><strong>Recipient receives</strong>: <span id="sumReceive"></span></div>
+<div><strong>Recipient country</strong>: <span id="sumCountry"></span></div>
+<div><strong>Route</strong>: <span id="sumRoute">PIX Instant</span></div>
 </div>
 
-<input id="amount" type="number" placeholder="Amount" value="10"/>
+<input id="amount" type="number" step="0.01" placeholder="Amount" value="10"/>
 
 <select id="source_country">
 <option value="US">United States</option>
@@ -159,7 +177,7 @@ UniBridge
 <option value="BR">Brazil</option>
 </select>
 
-<button id="sendBtn">Start transfer</button>
+<button id="sendBtn">Get quote</button>
 
 <div id="pixBox">
 
@@ -167,9 +185,13 @@ UniBridge
 
 <input id="pix" placeholder="Enter PIX key"/>
 
-<input id="taxId" placeholder="CPF / CNPJ"/>
+<input id="taxId" placeholder="CPF / CNPJ (optional)"/>
 
-<button id="continueBtn">Continue</button>
+<button id="continueBtn">Continue to payment</button>
+
+<div class="muted">
+PIX key is required. CPF/CNPJ is optional unless a provider specifically requires it.
+</div>
 
 </div>
 
@@ -190,10 +212,14 @@ let routeId=null
 let settlementId=null
 let poller=null
 let confirming=false
+let currentQuote=null
+let currentRoute=null
 
 const sendBtn=document.getElementById("sendBtn")
 const continueBtn=document.getElementById("continueBtn")
 const statusBox=document.getElementById("status")
+const summaryBox=document.getElementById("summary")
+const pixBox=document.getElementById("pixBox")
 
 function setStep(n){
 
@@ -215,23 +241,37 @@ if(type==="error"){statusBox.classList.add("status-error")}
 
 }
 
-function updateSummary(){
+function formatAmount(value,symbol=""){
+const n=Number(value)
+if(!Number.isFinite(n)) return "-"
+return `${n.toFixed(2)}${symbol ? " "+symbol : ""}`
+}
 
-const amount=document.getElementById("amount").value
+function updateSummaryFromQuote(route){
+
 const country=document.getElementById("country").value
 
-document.getElementById("sumAmount").innerText=amount+" USD"
+document.getElementById("sumFunding").innerText=
+formatAmount(route.funding_amount ?? route.send_amount,route.asset || "USDT")
+
+document.getElementById("sumReceive").innerText=
+formatAmount(route.estimated_receive,route.payout_currency || "BRL")
+
 document.getElementById("sumCountry").innerText=country
-document.getElementById("summary").style.display="block"
+
+document.getElementById("sumRoute").innerText=
+`${(route.payout_rail || "PIX").toUpperCase()} Instant`
+
+summaryBox.style.display="block"
 
 }
 
 async function api(path,payload){
 
-const r=await fetch("/api/proxy?endpoint="+path,{
+const r=await fetch("/api/proxy?endpoint="+encodeURIComponent(path),{
 method:"POST",
 headers:{ "content-type":"application/json" },
-body:JSON.stringify(payload)
+body:JSON.stringify(payload || {})
 })
 
 const text=await r.text()
@@ -241,7 +281,7 @@ let data
 try{
 data=JSON.parse(text)
 }catch{
-return {}
+data={}
 }
 
 if(!r.ok){
@@ -252,23 +292,39 @@ return data
 
 }
 
-/* REGISTER */
+async function getStatus(settlementIdValue){
+
+const r=await fetch("/api/proxy?endpoint=settlement/status&settlement_id="+encodeURIComponent(settlementIdValue))
+
+let data
+
+try{
+data=await r.json()
+}catch{
+data={}
+}
+
+return data
+
+}
+
+/* REGISTER + RESOLVE + QUOTE */
 
 async function startFlow(){
 
 try{
 
 sendBtn.disabled=true
-
-updateSummary()
+continueBtn.disabled=true
+pixBox.style.display="none"
+summaryBox.style.display="none"
 
 setStep(1)
-
 setStatus("Registering...")
 
 const amount=Number(document.getElementById("amount").value)
 
-if(!amount || amount<=0){
+if(!Number.isFinite(amount)||amount<=0){
 throw new Error("Invalid amount")
 }
 
@@ -289,46 +345,6 @@ if(!execution?.pix){
 throw new Error("PIX route unavailable")
 }
 
-setStep(2)
-
-document.getElementById("pixBox").style.display="block"
-
-document.getElementById("pix").focus()
-
-setStatus("Enter PIX key")
-
-}
-catch(err){
-
-console.error(err)
-setStatus(err.message,"error")
-sendBtn.disabled=false
-
-}
-
-}
-
-/* QUOTE + CREATE */
-
-async function continueFlow(){
-
-try{
-
-continueBtn.disabled=true
-
-const pix=document.getElementById("pix").value.trim()
-const tax_id=document.getElementById("taxId").value.trim()
-
-if(!pix){
-throw new Error("PIX required")
-}
-
-if(!tax_id){
-throw new Error("CPF or CNPJ required")
-}
-
-const amount=Number(document.getElementById("amount").value)
-
 setStatus("Getting quote...")
 
 const quote=await api("session/quote",{session_id:sessionId,amount})
@@ -337,14 +353,61 @@ if(!quote.routes?.length){
 throw new Error("No routes available")
 }
 
-routeId=quote.routes[0].route_id || quote.routes[0].id
+currentQuote=quote
+currentRoute=quote.routes[0]
+routeId=currentRoute.route_id || currentRoute.id
+
+updateSummaryFromQuote(currentRoute)
+
+setStep(2)
+
+pixBox.style.display="block"
+continueBtn.disabled=false
+
+document.getElementById("pix").focus()
+
+setStatus("Review quote and enter PIX key")
+
+}
+catch(err){
+
+console.error(err)
+setStatus(err.message,"error")
+sendBtn.disabled=false
+continueBtn.disabled=false
+
+}
+
+}
+
+/* CREATE + FUNDING */
+
+async function continueFlow(){
+
+try{
+
+continueBtn.disabled=true
+
+if(!sessionId || !routeId){
+throw new Error("Quote not ready")
+}
+
+const pix=document.getElementById("pix").value.trim()
+const tax_id=document.getElementById("taxId").value.trim()
+
+if(!pix){
+throw new Error("PIX required")
+}
+
+const destination=
+tax_id ? {pix,tax_id} : {pix}
 
 setStatus("Creating settlement...")
 
 const create=await api("settlement/create",{
 session_id:sessionId,
 route_id:routeId,
-destination:{pix,tax_id}
+destination
 })
 
 settlementId=create.settlement_id
@@ -384,21 +447,27 @@ confirming=true
 try{
 
 setStep(4)
-
 setStatus("Confirming payment...")
 
 await api("settlement/confirm",{settlement_id:settlementId})
 
-setStatus("Payment confirmed","success")
+setStatus("Payment verified")
 
 startPolling()
 
 }
 catch(err){
 
-console.error(err)
+if(err.message==="funding_not_confirmed"){
+setStatus("Waiting for payment confirmation...")
+startPolling()
+confirming=false
+return
+}
 
+console.error(err)
 setStatus("Confirm failed","error")
+confirming=false
 
 }
 
@@ -415,28 +484,21 @@ poller=setInterval(async ()=>{
 
 try{
 
-const r=await fetch("/api/proxy?endpoint=settlement/status&settlement_id="+settlementId)
+const data=await getStatus(settlementId)
 
-let data
-
-try{
-data=await r.json()
-}catch{
-data={}
+if(data.status==="pending_funding"){
+setStep(4)
+setStatus("Waiting for payment confirmation...")
 }
 
 if(data.status==="submitted"){
-
 setStep(4)
 setStatus("Transfer submitted")
-
 }
 
 if(data.status==="executing"){
-
 setStep(4)
 setStatus("Transfer executing")
-
 }
 
 if(data.status==="completed"){
@@ -449,6 +511,7 @@ setStatus("Transfer completed","success")
 
 localStorage.removeItem("ub_settlement")
 settlementId=null
+confirming=false
 
 }
 
@@ -462,6 +525,7 @@ setStatus("Transfer failed","error")
 
 localStorage.removeItem("ub_settlement")
 settlementId=null
+confirming=false
 
 }
 
@@ -476,7 +540,7 @@ console.error(e)
 
 /* RESUME AFTER REFRESH */
 
-window.addEventListener("load",async ()=>{
+window.addEventListener("load",async()=>{
 
 statusBox.innerText=""
 statusBox.className=""
@@ -489,19 +553,16 @@ try{
 
 settlementId=saved
 
-const r=await fetch("/api/proxy?endpoint=settlement/status&settlement_id="+settlementId)
+const data=await getStatus(settlementId)
 
-let data
-
-try{
-data=await r.json()
-}catch{
-data={}
-}
-
-if(data.status==="submitted" || data.status==="executing"){
+if(
+data.status==="submitted" ||
+data.status==="executing" ||
+data.status==="pending_funding"
+){
 
 setStep(4)
+setStatus("Resuming transfer...")
 startPolling()
 
 }else{

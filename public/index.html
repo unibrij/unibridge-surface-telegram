@@ -113,6 +113,10 @@ display:none;
 margin-top:10px;
 }
 
+#taxBox{
+display:none;
+}
+
 #status{
 margin-top:18px;
 font-size:14px;
@@ -161,7 +165,6 @@ UniBridge
 
 <div id="summary" class="summary">
 <div><strong>You pay</strong>: <span id="sumFunding"></span></div>
-<div><strong>Recipient receives</strong>: <span id="sumReceive"></span></div>
 <div><strong>Recipient country</strong>: <span id="sumCountry"></span></div>
 <div><strong>Route</strong>: <span id="sumRoute">PIX Instant</span></div>
 </div>
@@ -185,12 +188,14 @@ UniBridge
 
 <input id="pix" placeholder="Enter PIX key"/>
 
-<input id="taxId" placeholder="CPF / CNPJ (optional)"/>
+<div id="taxBox">
+<input id="taxId" placeholder="CPF / CNPJ"/>
+</div>
 
 <button id="continueBtn">Continue to payment</button>
 
 <div class="muted">
-PIX key is required. CPF/CNPJ is optional unless a provider specifically requires it.
+PIX key is required.
 </div>
 
 </div>
@@ -212,7 +217,6 @@ let routeId=null
 let settlementId=null
 let poller=null
 let confirming=false
-let currentQuote=null
 let currentRoute=null
 
 const sendBtn=document.getElementById("sendBtn")
@@ -220,6 +224,7 @@ const continueBtn=document.getElementById("continueBtn")
 const statusBox=document.getElementById("status")
 const summaryBox=document.getElementById("summary")
 const pixBox=document.getElementById("pixBox")
+const taxBox=document.getElementById("taxBox")
 
 function setStep(n){
 
@@ -244,20 +249,16 @@ if(type==="error"){statusBox.classList.add("status-error")}
 function formatAmount(value,symbol=""){
 const n=Number(value)
 if(!Number.isFinite(n)) return "-"
-return `${n.toFixed(2)}${symbol ? " "+symbol : ""}`
+return `${n.toFixed(2)} ${symbol}`
 }
 
 function updateSummaryFromQuote(route){
 
-const country=document.getElementById("country").value
-
 document.getElementById("sumFunding").innerText=
-formatAmount(route.funding_amount ?? route.send_amount,route.asset || "USDT")
+formatAmount(route.funding_amount,route.asset || "USDT")
 
-document.getElementById("sumReceive").innerText=
-formatAmount(route.estimated_receive,route.payout_currency || "BRL")
-
-document.getElementById("sumCountry").innerText=country
+document.getElementById("sumCountry").innerText=
+document.getElementById("country").value
 
 document.getElementById("sumRoute").innerText=
 `${(route.payout_rail || "PIX").toUpperCase()} Instant`
@@ -318,6 +319,7 @@ sendBtn.disabled=true
 continueBtn.disabled=true
 pixBox.style.display="none"
 summaryBox.style.display="none"
+taxBox.style.display="none"
 
 setStep(1)
 setStatus("Registering...")
@@ -339,9 +341,7 @@ setStatus("Resolving route...")
 
 const resolve=await api("session/resolve",{session_id:sessionId})
 
-const execution=resolve?.delivery_options?.execution
-
-if(!execution?.pix){
+if(!resolve?.delivery_options?.execution?.pix){
 throw new Error("PIX route unavailable")
 }
 
@@ -353,7 +353,6 @@ if(!quote.routes?.length){
 throw new Error("No routes available")
 }
 
-currentQuote=quote
 currentRoute=quote.routes[0]
 routeId=currentRoute.route_id || currentRoute.id
 
@@ -364,9 +363,13 @@ setStep(2)
 pixBox.style.display="block"
 continueBtn.disabled=false
 
+if(currentRoute.requires_tax_id){
+taxBox.style.display="block"
+}
+
 document.getElementById("pix").focus()
 
-setStatus("Review quote and enter PIX key")
+setStatus("Enter PIX key")
 
 }
 catch(err){
@@ -387,10 +390,6 @@ async function continueFlow(){
 try{
 
 continueBtn.disabled=true
-
-if(!sessionId || !routeId){
-throw new Error("Quote not ready")
-}
 
 const pix=document.getElementById("pix").value.trim()
 const tax_id=document.getElementById("taxId").value.trim()
@@ -541,9 +540,6 @@ console.error(e)
 /* RESUME AFTER REFRESH */
 
 window.addEventListener("load",async()=>{
-
-statusBox.innerText=""
-statusBox.className=""
 
 const saved=localStorage.getItem("ub_settlement")
 

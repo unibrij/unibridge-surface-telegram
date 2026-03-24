@@ -1,5 +1,3 @@
-// unibridge-surface-telegram/public/app.js
-
 const tg = window.Telegram?.WebApp;
 
 /* ================= SAFE ALERT ================= */
@@ -14,7 +12,7 @@ else{ alert(msg); }
 async function api(endpoint,payload){
 
 const r =
-await fetch(`/api/proxy?endpoint=${encodeURIComponent(endpoint)}`,{
+await fetch(`https://surface.unibrij.io/api/proxy?endpoint=${encodeURIComponent(endpoint)}`,{
 method:"POST",
 headers:{
 "content-type":"application/json"

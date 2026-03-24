@@ -35,7 +35,6 @@ button:disabled{opacity:.5;cursor:not-allowed;}
 #status{margin-top:18px;font-size:14px;color:#6b7280;}
 .status-success{color:#00b894;font-weight:600;}
 .status-error{color:#c62828;font-weight:600;}
-.muted{font-size:12px;color:#6b7280;margin-top:8px;}
 </style>
 
 </head>
@@ -89,8 +88,6 @@ button:disabled{opacity:.5;cursor:not-allowed;}
 
 <button id="continueBtn">Continue to payment</button>
 
-<div class="muted">PIX key is required.</div>
-
 </div>
 
 <div id="status"></div>
@@ -112,8 +109,7 @@ if(tg){ tg.expand() }
 const host = window.location.hostname;
 const pathName = window.location.pathname;
 
-const isMainDomain =
-  host === "unibrij.io" || host === "www.unibrij.io";
+const isMainDomain = host.endsWith("unibrij.io");
 
 const isSurface =
   pathName === "/surface" || pathName.startsWith("/surface/");
@@ -124,7 +120,7 @@ function isInteractiveSurface(){
   return isSurface || isTelegram;
 }
 
-/* ================= API BASE (HARD LOCK) ================= */
+/* ================= API BASE ================= */
 
 const API_BASE =
   isInteractiveSurface()
@@ -136,15 +132,19 @@ const API_BASE =
 async function api(endpoint, payload){
 
   if(!API_BASE){
-    throw new Error("blocked_context");
+    throw new Error("invalid_context");
   }
 
   const isProxy = API_BASE === "/api";
   const method = endpoint === "settlement/status" ? "GET" : "POST";
 
-  let url = isProxy
-    ? `/api?endpoint=${encodeURIComponent(endpoint)}`
-    : `${API_BASE}/v2/${endpoint}`;
+  let url;
+
+  if(isProxy){
+    url = `/api?endpoint=${encodeURIComponent(endpoint)}`;
+  } else {
+    url = `${API_BASE}/v2/${endpoint}`;
+  }
 
   if(method === "GET" && payload){
     const params = new URLSearchParams(payload).toString();
@@ -204,6 +204,16 @@ document.getElementById("step"+i).classList.remove("active")
 document.getElementById("step"+n).classList.add("active")
 }
 
+function resetUI(){
+setStep(1)
+summaryBox.style.display="none"
+pixBox.style.display="none"
+taxBox.style.display="none"
+statusBox.innerText=""
+sendBtn.disabled=false
+continueBtn.disabled=false
+}
+
 function setStatus(msg,type){
 statusBox.innerText=msg
 statusBox.className=""
@@ -211,17 +221,9 @@ if(type==="success")statusBox.classList.add("status-success")
 if(type==="error")statusBox.classList.add("status-error")
 }
 
-function formatAmount(v,s=""){
-const n=Number(v)
-if(!Number.isFinite(n)) return "-"
-return `${n.toFixed(2)} ${s}`
-}
-
 function updateSummary(route){
-document.getElementById("sumFunding").innerText =
-formatAmount(route.funding_amount, route.asset || "USDT")
-document.getElementById("sumCountry").innerText =
-document.getElementById("country").value
+document.getElementById("sumFunding").innerText = route.funding_amount
+document.getElementById("sumCountry").innerText = document.getElementById("country").value
 document.getElementById("sumRoute").innerText =
 `${(route.payout_rail || "PIX").toUpperCase()} Instant`
 summaryBox.style.display="block"
@@ -231,24 +233,21 @@ summaryBox.style.display="block"
 
 let sessionId=null
 let routeId=null
-let settlementId=null
-let poller=null
-let confirming=false
 
 /* ================= FLOW ================= */
 
 async function startFlow(){
 
-if(!isInteractiveSurface()) return;
+if(!isInteractiveSurface()){
+  setStatus("invalid_context","error")
+  return;
+}
 
 try{
 
+resetUI()
 sendBtn.disabled=true
-pixBox.style.display="none"
-summaryBox.style.display="none"
-taxBox.style.display="none"
 
-setStep(1)
 setStatus("Registering...")
 
 const amount=Number(document.getElementById("amount").value)
@@ -289,7 +288,10 @@ sendBtn.disabled=false
 
 async function continueFlow(){
 
-if(!isInteractiveSurface()) return;
+if(!isInteractiveSurface()){
+  setStatus("invalid_context","error")
+  return;
+}
 
 try{
 
@@ -310,10 +312,11 @@ route_id:routeId,
 destination
 })
 
-settlementId=create.settlement_id
-localStorage.setItem("ub_settlement", settlementId)
+const funding=await api("funding/session",{settlement_id:create.settlement_id})
 
-const funding=await api("funding/session",{settlement_id:settlementId})
+if(!funding.widget_url){
+throw new Error("widget_url_missing")
+}
 
 setStep(3)
 window.location.href=funding.widget_url
@@ -324,74 +327,10 @@ continueBtn.disabled=false
 }
 }
 
-async function confirmSettlement(){
+/* ================= RESET ON REFRESH ================= */
 
-if(confirming || !settlementId) return;
-confirming=true;
-
-try{
-setStep(4)
-setStatus("Confirming payment...")
-
-await api("settlement/confirm",{settlement_id:settlementId})
-
-startPolling()
-
-}catch(e){
-setStatus("Waiting confirmation...")
-startPolling()
-confirming=false
-}
-}
-
-function startPolling(){
-
-if(!settlementId || poller) return;
-
-poller=setInterval(async()=>{
-
-try{
-
-const data=await api("settlement/status",{settlement_id:settlementId})
-
-if(data.status==="completed"){
-clearInterval(poller)
-setStep(5)
-setStatus("Completed","success")
-localStorage.removeItem("ub_settlement")
-}
-
-if(data.status==="failed"){
-clearInterval(poller)
-setStep(5)
-setStatus("Failed","error")
-localStorage.removeItem("ub_settlement")
-}
-
-}catch{}
-
-},5000)
-
-}
-
-/* ================= RESUME ================= */
-
-window.addEventListener("load",async()=>{
-
-const saved=localStorage.getItem("ub_settlement")
-if(!saved) return;
-
-settlementId=saved
-setStep(4)
-setStatus("Resuming...")
-startPolling()
-
-})
-
-window.addEventListener("focus",()=>{
-if(settlementId && !poller && !confirming){
-confirmSettlement()
-}
+window.addEventListener("load",()=>{
+resetUI()
 })
 
 /* ================= BIND ================= */
@@ -402,7 +341,7 @@ continueBtn.onclick=continueFlow
 }else{
 sendBtn.disabled=true
 continueBtn.disabled=true
-setStatus("Open via surface")
+setStatus("Open via /surface")
 }
 
 </script>

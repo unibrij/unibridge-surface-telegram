@@ -7,35 +7,38 @@ app.use(express.json());
 app.use(express.static("public"));
 
 const API_BASE = process.env.UNIBRIDGE_API_BASE;
-const SECRET = process.env.SURFACE_HMAC_SECRET;
 
-if (!API_BASE) throw new Error("UNIBRIDGE_API_BASE missing");
-if (!SECRET) throw new Error("SURFACE_HMAC_SECRET missing");
+if (!API_BASE) {
+throw new Error("UNIBRIDGE_API_BASE missing");
+}
 
 const PARTNER_ID = "surface";
 
+const SECRET = process.env.SURFACE_HMAC_SECRET;
+
+if (!SECRET) {
+throw new Error("SURFACE_HMAC_SECRET missing");
+}
+
 const ALLOWED = new Set([
-  "session/register",
-  "session/resolve",
-  "session/quote",
-  "settlement/create",
-  "settlement/confirm",
-  "funding/session",
-  "settlement/status"
+"session/register",
+"session/resolve",
+"session/quote",
+"settlement/create",
+"settlement/confirm",
+"funding/session"
 ]);
 
 function sign(payload){
-  return crypto
-    .createHmac("sha256", SECRET)
-    .update(payload)
-    .digest("hex");
+return crypto
+.createHmac("sha256", SECRET)
+.update(payload)
+.digest("hex");
 }
 
-/* ==================================================
-POST /api
-================================================== */
+/* ================= FIXED ROUTE ================= */
 
-app.post("/api", async (req,res)=>{
+app.post("/api/proxy", async (req,res)=>{
 
 try{
 
@@ -57,16 +60,20 @@ if (!req.body || typeof req.body !== "object" || Array.isArray(req.body)) {
 }
 
 const payload = JSON.stringify(req.body);
+
 const signature = sign(payload);
 
 const controller = new AbortController();
-const timeout = setTimeout(() => controller.abort(), 15000);
+
+const timeout = setTimeout(
+  () => controller.abort(),
+  15000
+);
 
 let upstream;
 
 try{
 
-  // ✅ FIX: NO /v2 duplication
   upstream = await fetch(
     `${API_BASE}/${endpoint}`,
     {
@@ -86,16 +93,14 @@ finally{
   clearTimeout(timeout);
 }
 
-if(!upstream){
-  throw new Error("upstream_failed");
-}
-
 const text = await upstream.text();
 
 let data;
+
 try{
   data = JSON.parse(text);
-}catch{
+}
+catch{
   data = { raw:text };
 }
 
@@ -121,17 +126,13 @@ res.status(500).json({
 
 });
 
-/* ==================================================
-GET /api (status endpoint)
-================================================== */
+/* ================= STATUS ================= */
 
-app.get("/api", async (req,res)=>{
+app.get("/api/proxy", async (req,res)=>{
 
 try{
 
-const endpoint = req.query.endpoint;
-
-if(endpoint !== "settlement/status"){
+if(req.query.endpoint !== "settlement/status"){
   return res.status(403).json({
     error:"endpoint_not_allowed"
   });
@@ -143,26 +144,30 @@ if(!req.query.settlement_id){
   });
 }
 
-const params = new URLSearchParams({
-  settlement_id: req.query.settlement_id
-}).toString();
+const query =
+  new URLSearchParams({
+    settlement_id: req.query.settlement_id
+  }).toString();
 
-const upstream = await fetch(
-  `${API_BASE}/settlement/status?${params}`,
-  {
-    method:"GET",
-    headers:{
-      "x-ub-partner-id":PARTNER_ID
+const upstream =
+  await fetch(
+    `${API_BASE}/settlement/status?${query}`,
+    {
+      method:"GET",
+      headers:{
+        "x-ub-partner-id":PARTNER_ID
+      }
     }
-  }
-);
+  );
 
 const text = await upstream.text();
 
 let data;
+
 try{
   data = JSON.parse(text);
-}catch{
+}
+catch{
   data = { raw:text };
 }
 
@@ -171,7 +176,7 @@ res.status(upstream.status).json(data);
 }
 catch(err){
 
-console.error("STATUS_PROXY_ERROR",err);
+console.error("SURFACE_STATUS_PROXY_ERROR",err);
 
 res.status(500).json({
   error:"status_proxy_error"
@@ -181,23 +186,19 @@ res.status(500).json({
 
 });
 
-/* ==================================================
-HEALTH
-================================================== */
+/* ================= HEALTH ================= */
 
 app.get("/health",(req,res)=>{
-  res.json({
-    status:"ok",
-    service:"unibridge-surface"
-  });
+res.json({
+status:"ok",
+service:"unibridge-surface"
+});
 });
 
-/* ==================================================
-START
-================================================== */
+/* ================= START ================= */
 
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT,()=>{
-  console.log(`unibridge surface running on port ${PORT}`);
+console.log(`unibridge surface running on port ${PORT}`);
 });

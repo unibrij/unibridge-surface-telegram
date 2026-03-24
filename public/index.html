@@ -8,6 +8,7 @@
 <title>UniBridge</title>
 
 <style>
+
 body{
 font-family:system-ui,-apple-system,Segoe UI,Roboto;
 background:#f8fafc;
@@ -16,25 +17,128 @@ padding:40px 20px;
 display:flex;
 justify-content:center;
 }
-.container{max-width:420px;width:100%;}
-.logo{font-weight:700;font-size:20px;margin-bottom:20px;color:#003366;}
-.steps{display:flex;justify-content:space-between;margin-bottom:20px;font-size:12px;color:#9aa4af;}
-.step{flex:1;text-align:center;}
-.step.active{color:#00D4AA;font-weight:600;}
-.card{border:1px solid #e5edf3;border-radius:14px;padding:24px;background:#ffffff;}
-.summary{background:#f1f5f9;border-radius:10px;padding:12px;margin-bottom:15px;font-size:14px;display:none;}
-.summary div{margin:6px 0;}
-h2{margin-top:0;margin-bottom:20px;font-size:22px;color:#003366;}
-h3{margin-top:18px;margin-bottom:8px;font-size:16px;color:#003366;}
-input,select,button{width:100%;padding:14px;margin-top:10px;font-size:16px;border-radius:10px;box-sizing:border-box;}
-input,select{border:1px solid #e5edf3;}
-button{background:#00D4AA;color:#003366;border:none;cursor:pointer;font-weight:600;}
-button:disabled{opacity:.5;cursor:not-allowed;}
-#pixBox{display:none;margin-top:10px;}
-#taxBox{display:none;}
-#status{margin-top:18px;font-size:14px;color:#6b7280;}
-.status-success{color:#00b894;font-weight:600;}
-.status-error{color:#c62828;font-weight:600;}
+
+.container{
+max-width:420px;
+width:100%;
+}
+
+.logo{
+font-weight:700;
+font-size:20px;
+margin-bottom:20px;
+color:#003366;
+}
+
+.steps{
+display:flex;
+justify-content:space-between;
+margin-bottom:20px;
+font-size:12px;
+color:#9aa4af;
+}
+
+.step{
+flex:1;
+text-align:center;
+}
+
+.step.active{
+color:#00D4AA;
+font-weight:600;
+}
+
+.card{
+border:1px solid #e5edf3;
+border-radius:14px;
+padding:24px;
+background:#ffffff;
+}
+
+.summary{
+background:#f1f5f9;
+border-radius:10px;
+padding:12px;
+margin-bottom:15px;
+font-size:14px;
+display:none;
+}
+
+.summary div{
+margin:6px 0;
+}
+
+h2{
+margin-top:0;
+margin-bottom:20px;
+font-size:22px;
+color:#003366;
+}
+
+h3{
+margin-top:18px;
+margin-bottom:8px;
+font-size:16px;
+color:#003366;
+}
+
+input,select,button{
+width:100%;
+padding:14px;
+margin-top:10px;
+font-size:16px;
+border-radius:10px;
+box-sizing:border-box;
+}
+
+input,select{
+border:1px solid #e5edf3;
+}
+
+button{
+background:#00D4AA;
+color:#003366;
+border:none;
+cursor:pointer;
+font-weight:600;
+}
+
+button:disabled{
+opacity:.5;
+cursor:not-allowed;
+}
+
+#pixBox{
+display:none;
+margin-top:10px;
+}
+
+#taxBox{
+display:none;
+}
+
+#status{
+margin-top:18px;
+font-size:14px;
+color:#6b7280;
+}
+
+.status-success{
+color:#00b894;
+font-weight:600;
+}
+
+.status-error{
+color:#c62828;
+font-weight:600;
+}
+
+.muted{
+font-size:12px;
+color:#6b7280;
+margin-top:8px;
+}
+
 </style>
 
 </head>
@@ -43,7 +147,9 @@ button:disabled{opacity:.5;cursor:not-allowed;}
 
 <div class="container">
 
-<div class="logo">UniBridge</div>
+<div class="logo">
+UniBridge
+</div>
 
 <div class="steps">
 <div id="step1" class="step active">Setup</div>
@@ -63,7 +169,7 @@ button:disabled{opacity:.5;cursor:not-allowed;}
 <div><strong>Route</strong>: <span id="sumRoute">PIX Instant</span></div>
 </div>
 
-<input id="amount" type="number" step="0.01" value="10"/>
+<input id="amount" type="number" step="0.01" placeholder="Amount" value="10"/>
 
 <select id="source_country">
 <option value="US">United States</option>
@@ -88,6 +194,10 @@ button:disabled{opacity:.5;cursor:not-allowed;}
 
 <button id="continueBtn">Continue to payment</button>
 
+<div class="muted">
+PIX key is required.
+</div>
+
 </div>
 
 <div id="status"></div>
@@ -99,96 +209,15 @@ button:disabled{opacity:.5;cursor:not-allowed;}
 
 <script>
 
-/* ================= TELEGRAM ================= */
-
 const tg = window.Telegram?.WebApp
 if(tg){ tg.expand() }
 
-/* ================= CONTEXT ================= */
-
-const host = window.location.hostname;
-const pathName = window.location.pathname;
-
-const isMainDomain = host.endsWith("unibrij.io");
-
-const isSurface =
-  pathName === "/surface" || pathName.startsWith("/surface/");
-
-const isTelegram = !!tg;
-
-function isInteractiveSurface(){
-  return isSurface || isTelegram;
-}
-
-/* ================= API BASE ================= */
-
-const API_BASE =
-  isInteractiveSurface()
-    ? (isMainDomain ? "/api" : "https://unibridge-v2-xxx.run.app")
-    : null;
-
-/* ================= API ================= */
-
-async function api(endpoint, payload){
-
-  if(!API_BASE){
-    throw new Error("invalid_context");
-  }
-
-  const isProxy = API_BASE === "/api";
-  const method = endpoint === "settlement/status" ? "GET" : "POST";
-
-  let url;
-
-  if(isProxy){
-    url = `/api?endpoint=${encodeURIComponent(endpoint)}`;
-  } else {
-    url = `${API_BASE}/v2/${endpoint}`;
-  }
-
-  if(method === "GET" && payload){
-    const params = new URLSearchParams(payload).toString();
-    if(params){
-      url += isProxy ? `&${params}` : `?${params}`;
-    }
-  }
-
-  const options = {
-    method,
-    headers:{ "content-type":"application/json" }
-  };
-
-  if(method === "POST"){
-    options.body = JSON.stringify(payload || {});
-  }
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15000);
-
-  let r;
-
-  try{
-    r = await fetch(url,{...options, signal: controller.signal});
-  }catch(e){
-    clearTimeout(timeout);
-    throw new Error("network_error");
-  }
-
-  clearTimeout(timeout);
-
-  const text = await r.text();
-
-  let data;
-  try{ data = JSON.parse(text) }catch{ data = {} }
-
-  if(!r.ok){
-    throw new Error(data.error || "api_error");
-  }
-
-  return data;
-}
-
-/* ================= UI ================= */
+let sessionId=null
+let routeId=null
+let settlementId=null
+let poller=null
+let confirming=false
+let currentRoute=null
 
 const sendBtn=document.getElementById("sendBtn")
 const continueBtn=document.getElementById("continueBtn")
@@ -198,100 +227,165 @@ const pixBox=document.getElementById("pixBox")
 const taxBox=document.getElementById("taxBox")
 
 function setStep(n){
+
 for(let i=1;i<=5;i++){
 document.getElementById("step"+i).classList.remove("active")
 }
-document.getElementById("step"+n).classList.add("active")
-}
 
-function resetUI(){
-setStep(1)
-summaryBox.style.display="none"
-pixBox.style.display="none"
-taxBox.style.display="none"
-statusBox.innerText=""
-sendBtn.disabled=false
-continueBtn.disabled=false
+document.getElementById("step"+n).classList.add("active")
+
 }
 
 function setStatus(msg,type){
+
 statusBox.innerText=msg
 statusBox.className=""
-if(type==="success")statusBox.classList.add("status-success")
-if(type==="error")statusBox.classList.add("status-error")
+
+if(type==="success"){statusBox.classList.add("status-success")}
+if(type==="error"){statusBox.classList.add("status-error")}
+
 }
 
-function updateSummary(route){
-document.getElementById("sumFunding").innerText = route.funding_amount
-document.getElementById("sumCountry").innerText = document.getElementById("country").value
-document.getElementById("sumRoute").innerText =
+function formatAmount(value,symbol=""){
+const n=Number(value)
+if(!Number.isFinite(n)) return "-"
+return `${n.toFixed(2)} ${symbol}`
+}
+
+function updateSummaryFromQuote(route){
+
+document.getElementById("sumFunding").innerText=
+formatAmount(route.funding_amount,route.asset || "USDT")
+
+document.getElementById("sumCountry").innerText=
+document.getElementById("country").value
+
+document.getElementById("sumRoute").innerText=
 `${(route.payout_rail || "PIX").toUpperCase()} Instant`
+
 summaryBox.style.display="block"
+
 }
 
-/* ================= STATE ================= */
+async function api(path,payload){
 
-let sessionId=null
-let routeId=null
+const r=await fetch("/api/proxy?endpoint="+encodeURIComponent(path),{
+method:"POST",
+headers:{ "content-type":"application/json" },
+body:JSON.stringify(payload || {})
+})
 
-/* ================= FLOW ================= */
+const text=await r.text()
+
+let data
+
+try{
+data=JSON.parse(text)
+}catch{
+data={}
+}
+
+if(!r.ok){
+throw new Error(data.error || "api_error")
+}
+
+return data
+
+}
+
+async function getStatus(settlementIdValue){
+
+const r=await fetch("/api/proxy?endpoint=settlement/status&settlement_id="+encodeURIComponent(settlementIdValue))
+
+let data
+
+try{
+data=await r.json()
+}catch{
+data={}
+}
+
+return data
+
+}
+
+/* REGISTER + RESOLVE + QUOTE */
 
 async function startFlow(){
 
-if(!isInteractiveSurface()){
-  setStatus("invalid_context","error")
-  return;
-}
-
 try{
 
-resetUI()
 sendBtn.disabled=true
+continueBtn.disabled=true
+pixBox.style.display="none"
+summaryBox.style.display="none"
+taxBox.style.display="none"
 
+setStep(1)
 setStatus("Registering...")
 
 const amount=Number(document.getElementById("amount").value)
+
+if(!Number.isFinite(amount)||amount<=0){
+throw new Error("Invalid amount")
+}
+
 const country=document.getElementById("country").value
 const source=document.getElementById("source_country").value
 
-if(!amount || amount<=0){
-throw new Error("invalid_amount")
-}
-
 const reg=await api("session/register",{source_country:source,receiver_country:country})
+
 sessionId=reg.session_id
 
-await api("session/resolve",{session_id:sessionId})
+setStatus("Resolving route...")
+
+const resolve=await api("session/resolve",{session_id:sessionId})
+
+if(!resolve?.delivery_options?.execution?.pix){
+throw new Error("PIX route unavailable")
+}
+
+setStatus("Getting quote...")
 
 const quote=await api("session/quote",{session_id:sessionId,amount})
 
 if(!quote.routes?.length){
-throw new Error("no_routes")
+throw new Error("No routes available")
 }
 
-const route=quote.routes[0]
-routeId=route.route_id || route.id
+currentRoute=quote.routes[0]
+routeId=currentRoute.route_id || currentRoute.id
 
-updateSummary(route)
-
-pixBox.style.display="block"
-if(route.requires_tax_id) taxBox.style.display="block"
+updateSummaryFromQuote(currentRoute)
 
 setStep(2)
-setStatus("Enter PIX")
 
-}catch(e){
-setStatus(e.message,"error")
+pixBox.style.display="block"
+continueBtn.disabled=false
+
+if(currentRoute.requires_tax_id){
+taxBox.style.display="block"
+}
+
+document.getElementById("pix").focus()
+
+setStatus("Enter PIX key")
+
+}
+catch(err){
+
+console.error(err)
+setStatus(err.message,"error")
 sendBtn.disabled=false
+continueBtn.disabled=false
+
 }
+
 }
+
+/* CREATE + FUNDING */
 
 async function continueFlow(){
-
-if(!isInteractiveSurface()){
-  setStatus("invalid_context","error")
-  return;
-}
 
 try{
 
@@ -301,10 +395,13 @@ const pix=document.getElementById("pix").value.trim()
 const tax_id=document.getElementById("taxId").value.trim()
 
 if(!pix){
-throw new Error("pix_required")
+throw new Error("PIX required")
 }
 
-const destination = tax_id ? {pix,tax_id} : {pix}
+const destination=
+tax_id ? {pix,tax_id} : {pix}
+
+setStatus("Creating settlement...")
 
 const create=await api("settlement/create",{
 session_id:sessionId,
@@ -312,37 +409,190 @@ route_id:routeId,
 destination
 })
 
-const funding=await api("funding/session",{settlement_id:create.settlement_id})
+settlementId=create.settlement_id
+
+localStorage.setItem("ub_settlement",settlementId)
+
+setStatus("Redirecting to payment...")
+
+const funding=await api("funding/session",{settlement_id:settlementId})
 
 if(!funding.widget_url){
-throw new Error("widget_url_missing")
+throw new Error("Ramp unavailable")
 }
 
 setStep(3)
+
 window.location.href=funding.widget_url
 
-}catch(e){
-setStatus(e.message,"error")
+}
+catch(err){
+
+console.error(err)
+setStatus(err.message,"error")
 continueBtn.disabled=false
-}
+
 }
 
-/* ================= RESET ON REFRESH ================= */
+}
 
-window.addEventListener("load",()=>{
-resetUI()
+/* CONFIRM PAYMENT */
+
+async function confirmSettlement(){
+
+if(confirming) return
+confirming=true
+
+try{
+
+setStep(4)
+setStatus("Confirming payment...")
+
+await api("settlement/confirm",{settlement_id:settlementId})
+
+setStatus("Payment verified")
+
+startPolling()
+
+}
+catch(err){
+
+if(err.message==="funding_not_confirmed"){
+setStatus("Waiting for payment confirmation...")
+startPolling()
+confirming=false
+return
+}
+
+console.error(err)
+setStatus("Confirm failed","error")
+confirming=false
+
+}
+
+}
+
+/* POLLING */
+
+function startPolling(){
+
+if(!settlementId) return
+if(poller) return
+
+poller=setInterval(async ()=>{
+
+try{
+
+const data=await getStatus(settlementId)
+
+if(data.status==="pending_funding"){
+setStep(4)
+setStatus("Waiting for payment confirmation...")
+}
+
+if(data.status==="submitted"){
+setStep(4)
+setStatus("Transfer submitted")
+}
+
+if(data.status==="executing"){
+setStep(4)
+setStatus("Transfer executing")
+}
+
+if(data.status==="completed"){
+
+clearInterval(poller)
+poller=null
+
+setStep(5)
+setStatus("Transfer completed","success")
+
+localStorage.removeItem("ub_settlement")
+settlementId=null
+confirming=false
+
+}
+
+if(data.status==="failed"){
+
+clearInterval(poller)
+poller=null
+
+setStep(5)
+setStatus("Transfer failed","error")
+
+localStorage.removeItem("ub_settlement")
+settlementId=null
+confirming=false
+
+}
+
+}
+catch(e){
+console.error(e)
+}
+
+},5000)
+
+}
+
+/* RESUME AFTER REFRESH */
+
+window.addEventListener("load",async()=>{
+
+const saved=localStorage.getItem("ub_settlement")
+
+if(!saved) return
+
+try{
+
+settlementId=saved
+
+const data=await getStatus(settlementId)
+
+if(
+data.status==="submitted" ||
+data.status==="executing" ||
+data.status==="pending_funding"
+){
+
+setStep(4)
+setStatus("Resuming transfer...")
+startPolling()
+
+}else{
+
+localStorage.removeItem("ub_settlement")
+settlementId=null
+setStep(1)
+
+}
+
+}catch(e){
+
+localStorage.removeItem("ub_settlement")
+settlementId=null
+setStep(1)
+
+}
+
 })
 
-/* ================= BIND ================= */
+/* RETURN FROM PAYMENT */
 
-if(isInteractiveSurface()){
+window.addEventListener("focus",()=>{
+
+if(!settlementId) return
+if(poller) return
+if(confirming) return
+
+confirmSettlement()
+
+})
+
 sendBtn.onclick=startFlow
 continueBtn.onclick=continueFlow
-}else{
-sendBtn.disabled=true
-continueBtn.disabled=true
-setStatus("Open via /surface")
-}
 
 </script>
 
